@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: springboot-hello
+  namespace: default
+  labels:
+    app: springboot-hello
+
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: springboot-hello
+
+  template:
+    metadata:
+      labels:
+        app: springboot-hello
+
+    spec:
+      containers:
+      - name: springboot-hello
+
+        image: akrameee09/springboot-hello:IMAGE_TAG
+        imagePullPolicy: Always
+
+        ports:
+        - containerPort: 8080
+
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 20
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
