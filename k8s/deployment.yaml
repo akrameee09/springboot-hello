@@ -23,7 +23,7 @@ spec:
       containers:
       - name: springboot-hello
 
-        image: akrameee09/springboot-hello:25
+        image: akrameee09/springboot-hello:26
         imagePullPolicy: Always
 
         ports:
