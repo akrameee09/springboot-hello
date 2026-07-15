@@ -1,9 +1,3 @@
-FROM openjdk:8-jre-slim
-
-WORKDIR /app
-
-COPY target/*.jar app.jar
-
-EXPOSE 8080
-
+FROM java:8
+ADD ./target/gs-spring-boot-0.1.0.jar app.jar
 ENTRYPOINT ["java","-jar","app.jar"]
