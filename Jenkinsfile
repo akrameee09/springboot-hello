@@ -124,6 +124,8 @@ pipeline {
                     sh """
                         curl -sk -X POST \
                           -H "Authorization: Bearer \${ARGOCD_TOKEN}" \
+                          -H "Content-Type: application/json" \
+                          -d '{}' \
                           "https://172.20.10.223:31996/api/v1/applications/${DEPLOYMENT_NAME}/sync"
                     """
                 }
