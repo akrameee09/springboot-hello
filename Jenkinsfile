@@ -8,6 +8,7 @@ pipeline {
         IMAGE_NAME      = 'akrameee09/springboot-hello'
         GITOPS_REPO_URL = 'github.com/akrameee09/springboot-hello-gitops.git'
         GITOPS_DIR      = 'gitops-repo'
+        NOTIFY_EMAIL    = 'akramhossain.se@gmail.com'
     }
     options {
         disableConcurrentBuilds()
@@ -17,16 +18,23 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                // With "Pipeline script from SCM", Jenkins already knows which
-                // repo/branch to pull (configured in the job UI) - this just
-                // performs the full checkout into the workspace.
                 checkout scm
+            }
+            post {
+                failure {
+                    script { env.FAILED_STAGE = 'Checkout' }
+                }
             }
         }
 
         stage('Build Maven Project') {
             steps {
                 sh 'mvn clean verify'
+            }
+            post {
+                failure {
+                    script { env.FAILED_STAGE = 'Build Maven Project' }
+                }
             }
         }
 
@@ -40,6 +48,11 @@ pipeline {
                     '''
                 }
             }
+            post {
+                failure {
+                    script { env.FAILED_STAGE = 'SonarQube Analysis' }
+                }
+            }
         }
 
         stage('Quality Gate') {
@@ -48,12 +61,22 @@ pipeline {
                     waitForQualityGate abortPipeline: true
                 }
             }
+            post {
+                failure {
+                    script { env.FAILED_STAGE = 'Quality Gate' }
+                }
+            }
         }
 
         stage('Build Docker Image') {
             steps {
                 script {
                     dockerImage = docker.build("${IMAGE_NAME}:${BUILD_NUMBER}")
+                }
+            }
+            post {
+                failure {
+                    script { env.FAILED_STAGE = 'Build Docker Image' }
                 }
             }
         }
@@ -65,6 +88,11 @@ pipeline {
                         dockerImage.push("${BUILD_NUMBER}")
                         dockerImage.push("latest")
                     }
+                }
+            }
+            post {
+                failure {
+                    script { env.FAILED_STAGE = 'Push Docker Image' }
                 }
             }
         }
@@ -95,22 +123,42 @@ pipeline {
                     """
                 }
             }
+            post {
+                failure {
+                    script { env.FAILED_STAGE = 'Update GitOps Manifest' }
+                }
+            }
         }
     }
     post {
         success {
-            echo "========================================="
-            echo "BUILD SUCCESSFUL"
-            echo "========================================="
-            echo "Docker Image:   ${IMAGE_NAME}:${BUILD_NUMBER}"
-            echo "Latest Image:   ${IMAGE_NAME}:latest"
-            echo "GitOps repo updated. ArgoCD will sync automatically."
-            echo "========================================="
+            emailext (
+                to: "${NOTIFY_EMAIL}",
+                subject: "✅ Deploy SUCCESS - springboot-hello #${BUILD_NUMBER}",
+                body: """
+                    <h3>Deployment pipeline completed successfully</h3>
+                    <p><b>Build:</b> #${BUILD_NUMBER}</p>
+                    <p><b>Image:</b> ${IMAGE_NAME}:${BUILD_NUMBER}</p>
+                    <p><b>GitOps repo:</b> updated - ArgoCD will sync automatically</p>
+                    <p><b>Console log:</b> <a href="${BUILD_URL}console">${BUILD_URL}console</a></p>
+                    <p style="color:#888;font-size:12px">Note: this confirms the build/push/manifest-update succeeded.
+                    Actual pod health in the cluster is managed by ArgoCD - check the ArgoCD UI to confirm Synced/Healthy.</p>
+                """,
+                mimeType: 'text/html'
+            )
         }
         failure {
-            echo "========================================="
-            echo "PIPELINE FAILED - check stage logs above"
-            echo "========================================="
+            emailext (
+                to: "${NOTIFY_EMAIL}",
+                subject: "❌ Deploy FAILED - springboot-hello #${BUILD_NUMBER} - Stage: ${env.FAILED_STAGE ?: 'Unknown'}",
+                body: """
+                    <h3>Deployment pipeline failed</h3>
+                    <p><b>Build:</b> #${BUILD_NUMBER}</p>
+                    <p><b>Failed stage:</b> ${env.FAILED_STAGE ?: 'Unknown'}</p>
+                    <p><b>Console log:</b> <a href="${BUILD_URL}console">${BUILD_URL}console</a></p>
+                """,
+                mimeType: 'text/html'
+            )
         }
         always {
             sh "rm -rf ${GITOPS_DIR}"
